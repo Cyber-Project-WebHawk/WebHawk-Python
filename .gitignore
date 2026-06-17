@@ -136,3 +136,6 @@ desktop.ini
 # ---- Docs build ----
 docs/_build/
 /site
+
+# ---- Project documents ----
+Cyber - Python.docx.pdf
