@@ -6,6 +6,37 @@ def create_tables():
     cursor = conn.cursor()
 
     cursor.execute("""
+        CREATE TABLE IF NOT EXISTS users (
+            id         SERIAL PRIMARY KEY,
+            username   VARCHAR(100) NOT NULL UNIQUE,
+            password   VARCHAR(255) NOT NULL,
+            created_at TIMESTAMP    NOT NULL
+        );
+    """)
+
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS user_sessions (
+            id         SERIAL PRIMARY KEY,
+            user_id    INTEGER      NOT NULL REFERENCES users(id),
+            token      TEXT         NOT NULL UNIQUE,
+            ip         VARCHAR(45)  NOT NULL,
+            created_at TIMESTAMP    NOT NULL,
+            expires_at TIMESTAMP    NOT NULL,
+            is_active  BOOLEAN      NOT NULL DEFAULT true
+        );
+    """)
+
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS backend_registration (
+            id         SERIAL PRIMARY KEY,
+            name       VARCHAR(100) NOT NULL,
+            target_url VARCHAR(255) NOT NULL,
+            api_key    VARCHAR(100) NOT NULL UNIQUE,
+            is_active  BOOLEAN      NOT NULL DEFAULT true
+        );
+    """)
+
+    cursor.execute("""
         CREATE TABLE IF NOT EXISTS security_logs (
             id          SERIAL PRIMARY KEY,
             ip          VARCHAR(45)  NOT NULL,
