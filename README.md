@@ -76,7 +76,51 @@ WebHawk-Python/
 
 ---
 
-## Setup
+## Running with Docker (Recommended)
+
+### Requirements
+- [Docker Desktop](https://www.docker.com/products/docker-desktop/) installed and running
+
+### Step 1 — Start all services
+Open a terminal in the project root and run:
+```bash
+docker-compose up -d
+```
+This starts 3 containers:
+| Container | What it is | Port |
+|---|---|---|
+| `webhawk_db` | PostgreSQL database | 5432 |
+| `webhawk_app` | WebHawk security middleware | 5000 |
+| `webhawk_vulnerable` | Vulnerable test backend | 5001 |
+
+### Step 2 — Create the database tables (first time only)
+```bash
+docker exec webhawk_app python db/create_tables.py
+```
+Expected output: `Tables created successfully.`
+
+### Step 3 — Verify everything is running
+```bash
+docker-compose ps
+```
+All 3 containers should show `Up`.
+
+### Step 4 — Stop the project
+```bash
+docker-compose down
+```
+
+### Useful commands
+| Action | Command |
+|---|---|
+| Start | `docker-compose up -d` |
+| Stop | `docker-compose down` |
+| View app logs | `docker logs webhawk_app` |
+| View DB | `docker exec -it webhawk_db psql -U postgres -d webhawk -c "SELECT * FROM security_logs;"` |
+
+---
+
+## Setup (Without Docker)
 
 ### 1. Install dependencies
 ```bash
@@ -231,24 +275,128 @@ HTTP 403
 
 ## Testing with Postman
 
-1. Register a user → `POST /auth/register`
-2. Login → `POST /auth/login` → copy the token
-3. Register a backend pointing to `http://localhost:5001` → copy the API key
-4. Send an attack through the proxy:
-```
-POST /backends/proxy/login
-X-API-Key: <your api key>
-Body: { "username": "admin' OR 1=1 --", "password": "anything" }
-```
-Expected: `403 Blocked — SQLi detected`
+Postman is a free app for sending HTTP requests. Download it from [postman.com/downloads](https://www.postman.com/downloads/).
 
-5. Send a clean request:
+In Postman, for every request:
+1. Select the **method** (GET, POST, PATCH)
+2. Enter the **URL**
+3. Go to **Body → raw → JSON** and paste the JSON body
+4. Click **Send**
+
+---
+
+### Test 1 — Register a user
 ```
-POST /backends/proxy/login
-X-API-Key: <your api key>
-Body: { "username": "admin", "password": "admin123" }
+Method: POST
+URL: http://localhost:5000/auth/register
+Body:
+{
+  "username": "romi",
+  "password": "securepass123"
+}
 ```
-Expected: `200 OK` — forwarded to the real backend
+Expected `201`:
+```json
+{ "message": "User registered successfully", "user": { "id": 1, "username": "romi" } }
+```
+
+---
+
+### Test 2 — Login and get a JWT token
+```
+Method: POST
+URL: http://localhost:5000/auth/login
+Body:
+{
+  "username": "romi",
+  "password": "securepass123"
+}
+```
+Expected `200`:
+```json
+{ "token": "eyJhbGc...", "expires_at": "..." }
+```
+**Copy the token value — you will need it for protected routes.**
+
+---
+
+### Test 3 — Register a backend
+```
+Method: POST
+URL: http://localhost:5000/backends/register
+Body:
+{
+  "name": "my-vulnerable-backend",
+  "target_url": "http://vulnerable_backend:5001"
+}
+```
+Expected `201`:
+```json
+{ "api_key": "f47ac10b-...", "name": "my-vulnerable-backend", "is_active": true }
+```
+**Copy the api_key value — you will need it for proxy requests.**
+
+---
+
+### Test 4 — Send a clean request through the proxy
+```
+Method: POST
+URL: http://localhost:5000/backends/proxy/login
+Headers tab → add: X-API-Key = <your api_key>
+Body:
+{
+  "username": "admin",
+  "password": "admin123"
+}
+```
+Expected `200` — request passed through to the real backend:
+```json
+{ "message": "Welcome admin!", "role": "admin" }
+```
+
+---
+
+### Test 5 — SQL Injection attack (should be BLOCKED)
+```
+Method: POST
+URL: http://localhost:5000/backends/proxy/login
+Headers tab → add: X-API-Key = <your api_key>
+Body:
+{
+  "username": "admin' OR 1=1 --",
+  "password": "anything"
+}
+```
+Expected `403`:
+```json
+{ "status": "blocked", "attack_type": "SQLi", "message": "Request blocked: SQLi detected" }
+```
+
+---
+
+### Test 6 — XSS attack (should be BLOCKED)
+```
+Method: POST
+URL: http://localhost:5000/backends/proxy/comment
+Headers tab → add: X-API-Key = <your api_key>
+Body:
+{
+  "text": "<script>alert(1)</script>"
+}
+```
+Expected `403`:
+```json
+{ "status": "blocked", "attack_type": "XSS", "message": "Request blocked: XSS detected" }
+```
+
+---
+
+### Test 7 — Check security logs in the DB
+After running the attack tests, check what was logged:
+```bash
+docker exec -it webhawk_db psql -U postgres -d webhawk -c "SELECT * FROM security_logs;"
+```
+You should see one row per blocked attack.
 
 ---
 
