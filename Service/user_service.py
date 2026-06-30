@@ -4,7 +4,7 @@ import os
 import uuid
 from datetime import datetime, timedelta, timezone
 from dotenv import load_dotenv
-from repository.user_repository import (
+from Repository.user_repository import (
     create_user,
     get_user_by_username,
     create_session,
