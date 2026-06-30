@@ -29,7 +29,6 @@ def list_backends(user_id):
             "id": r[0],
             "name": r[1],
             "target_url": r[2],
-            "api_key": r[3],
             "is_active": r[4],
         }
         for r in rows
@@ -66,14 +65,17 @@ def proxy_request(api_key, method, path, headers, body, query_params):
         if k.lower() not in ("host", "content-length")
     }
 
-    response = requests.request(
-        method=method,
-        url=target_url,
-        headers=forwarded_headers,
-        json=body if body else None,
-        params=query_params,
-        timeout=10,
-    )
+    try:
+        response = requests.request(
+            method=method,
+            url=target_url,
+            headers=forwarded_headers,
+            json=body if body else None,
+            params=query_params,
+            timeout=10,
+        )
+    except requests.RequestException:
+        return {"error": "Backend is unavailable"}, 502
 
     try:
         return response.json(), response.status_code

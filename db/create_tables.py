@@ -35,7 +35,9 @@ def create_tables():
             name       VARCHAR(100) NOT NULL,
             target_url VARCHAR(255) NOT NULL,
             api_key    VARCHAR(100) NOT NULL UNIQUE,
-            is_active  BOOLEAN      NOT NULL DEFAULT true
+            is_active  BOOLEAN      NOT NULL DEFAULT true,
+            user_id    INTEGER      NOT NULL REFERENCES users(id),
+            UNIQUE (name, user_id)
         );
     """)
 
