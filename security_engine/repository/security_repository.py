@@ -2,7 +2,7 @@ from db.database import get_connection
 from datetime import datetime
 
 
-def log_security_event(ip, endpoint, method, attack_type, was_blocked):
+def log_security_event(ip, endpoint, method, attack_type, was_blocked, backend_key="direct"):
     conn = get_connection()
     cursor = conn.cursor()
     cursor.execute(
@@ -17,7 +17,7 @@ def log_security_event(ip, endpoint, method, attack_type, was_blocked):
     conn.close()
 
 
-def upsert_rate_limit(ip, endpoint, window_seconds=60):
+def upsert_rate_limit(ip, endpoint, backend_key="direct", window_seconds=60):
     conn = get_connection()
     cursor = conn.cursor()
     cursor.execute(
@@ -51,3 +51,62 @@ def upsert_rate_limit(ip, endpoint, window_seconds=60):
     cursor.close()
     conn.close()
     return row  # (request_count, is_blocked)
+
+
+def get_dashboard_data(backend_key=None, hours=24):
+    conn = get_connection()
+    cursor = conn.cursor()
+
+    cursor.execute(
+        """
+        SELECT COUNT(*) FROM security_logs
+        WHERE created_at >= NOW() - INTERVAL '%s hours'
+        """,
+        (hours,),
+    )
+    total_requests = cursor.fetchone()[0]
+
+    cursor.execute(
+        """
+        SELECT COUNT(*) FROM security_logs
+        WHERE was_blocked = true
+          AND created_at >= NOW() - INTERVAL '%s hours'
+        """,
+        (hours,),
+    )
+    total_blocked = cursor.fetchone()[0]
+
+    cursor.execute(
+        """
+        SELECT attack_type, COUNT(*) FROM security_logs
+        WHERE was_blocked = true
+          AND created_at >= NOW() - INTERVAL '%s hours'
+        GROUP BY attack_type
+        """,
+        (hours,),
+    )
+    attacks_by_type = {row[0]: row[1] for row in cursor.fetchall()}
+
+    cursor.execute(
+        """
+        SELECT DATE_TRUNC('hour', created_at) AS hour, COUNT(*) FROM security_logs
+        WHERE was_blocked = true
+          AND created_at >= NOW() - INTERVAL '%s hours'
+        GROUP BY hour
+        ORDER BY hour
+        """,
+        (hours,),
+    )
+    hourly_timeline = [
+        {"hour": str(row[0]), "blocked": row[1]} for row in cursor.fetchall()
+    ]
+
+    cursor.close()
+    conn.close()
+
+    return {
+        "total_requests": total_requests,
+        "total_blocked": total_blocked,
+        "attacks_by_type": attacks_by_type,
+        "hourly_timeline": hourly_timeline,
+    }
