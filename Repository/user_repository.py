@@ -92,7 +92,7 @@ def deactivate_session(token):
     """
     Only matches a currently-active session. A token that's already logged
     out (or never existed) now consistently returns None either way - no
-    information is leaked about which case it was, and the route layer can
+    information is leaked about which case it was, and the Route layer can
     return a clean 404 instead of a false "Logged out successfully".
     """
     conn = get_connection()

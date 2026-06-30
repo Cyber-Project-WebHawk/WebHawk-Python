@@ -13,7 +13,7 @@ __pycache__/
 MANIFEST
 .installed.cfg
 
-# Distribution / packaging (not needed for a backend service)
+# Distribution / packaging (not needed for a backend Service)
 build/
 dist/
 develop-eggs/

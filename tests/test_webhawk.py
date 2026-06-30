@@ -114,8 +114,8 @@ class TestXSSDetection:
 class TestScanRequest:
     """Tests for scan_request() — the full detection pipeline."""
 
-    @patch("security_engine.service.security_service.upsert_rate_limit", return_value=(1, False))
-    @patch("security_engine.service.security_service.log_security_event")
+    @patch("security_engine.Service.security_service.upsert_rate_limit", return_value=(1, False))
+    @patch("security_engine.Service.security_service.log_security_event")
     def test_blocks_sqli_in_body(self, mock_log, mock_rate):
         from security_engine.service.security_service import scan_request
         result = scan_request("127.0.0.1", "/login", "POST",
@@ -124,8 +124,8 @@ class TestScanRequest:
         assert result["attack_type"] == "SQLi"
         mock_log.assert_called_once()
 
-    @patch("security_engine.service.security_service.upsert_rate_limit", return_value=(1, False))
-    @patch("security_engine.service.security_service.log_security_event")
+    @patch("security_engine.Service.security_service.upsert_rate_limit", return_value=(1, False))
+    @patch("security_engine.Service.security_service.log_security_event")
     def test_blocks_xss_in_body(self, mock_log, mock_rate):
         from security_engine.service.security_service import scan_request
         result = scan_request("127.0.0.1", "/comment", "POST",
@@ -133,8 +133,8 @@ class TestScanRequest:
         assert result["blocked"] is True
         assert result["attack_type"] == "XSS"
 
-    @patch("security_engine.service.security_service.upsert_rate_limit", return_value=(1, False))
-    @patch("security_engine.service.security_service.log_security_event")
+    @patch("security_engine.Service.security_service.upsert_rate_limit", return_value=(1, False))
+    @patch("security_engine.Service.security_service.log_security_event")
     def test_blocks_sqli_in_query_params(self, mock_log, mock_rate):
         from security_engine.service.security_service import scan_request
         result = scan_request("127.0.0.1", "/search", "GET",
@@ -142,33 +142,33 @@ class TestScanRequest:
         assert result["blocked"] is True
         assert result["attack_type"] == "SQLi"
 
-    @patch("security_engine.service.security_service.upsert_rate_limit", return_value=(101, True))
-    @patch("security_engine.service.security_service.log_security_event")
+    @patch("security_engine.Service.security_service.upsert_rate_limit", return_value=(101, True))
+    @patch("security_engine.Service.security_service.log_security_event")
     def test_blocks_rate_limit(self, mock_log, mock_rate):
         from security_engine.service.security_service import scan_request
         result = scan_request("127.0.0.1", "/data", "GET", {}, {}, "/data")
         assert result["blocked"] is True
         assert result["attack_type"] == "Rate Limiting"
 
-    @patch("security_engine.service.security_service.upsert_rate_limit", return_value=(1, False))
+    @patch("security_engine.Service.security_service.upsert_rate_limit", return_value=(1, False))
     def test_allows_clean_request(self, mock_rate):
         from security_engine.service.security_service import scan_request
         result = scan_request("127.0.0.1", "/data", "GET", {}, {}, "/data")
         assert result["blocked"] is False
         assert result["attack_type"] is None
 
-    @patch("security_engine.service.security_service.upsert_rate_limit", return_value=(101, True))
-    @patch("security_engine.service.security_service.log_security_event")
+    @patch("security_engine.Service.security_service.upsert_rate_limit", return_value=(101, True))
+    @patch("security_engine.Service.security_service.log_security_event")
     def test_sqli_takes_priority_over_rate_limit(self, mock_log, mock_rate):
         from security_engine.service.security_service import scan_request
         result = scan_request("127.0.0.1", "/login", "POST",
                               {"username": "admin' OR 1=1 --"}, {}, "/login")
         assert result["attack_type"] == "SQLi"
 
-    @patch("security_engine.service.security_service.upsert_rate_limit", return_value=(1, False))
+    @patch("security_engine.Service.security_service.upsert_rate_limit", return_value=(1, False))
     def test_logs_clean_request_as_unblocked(self, mock_rate):
         from security_engine.service.security_service import scan_request
-        with patch("security_engine.service.security_service.log_security_event") as mock_log:
+        with patch("security_engine.Service.security_service.log_security_event") as mock_log:
             scan_request("127.0.0.1", "/data", "GET", {}, {}, "/data")
             mock_log.assert_called_once()
             assert mock_log.call_args[0][4] is False  # was_blocked = False
@@ -482,7 +482,7 @@ class TestProxy:
 # ===========================================================================
 
 class TestSecurityScanEndpoint:
-    @patch("security_engine.route.security_route.scan_request",
+    @patch("security_engine.Route.security_route.scan_request",
            return_value={"blocked": True, "attack_type": "SQLi", "request_count": 1})
     def test_scan_blocks_sqli(self, mock_scan, client):
         resp = client.post("/security/scan", json={
@@ -495,7 +495,7 @@ class TestSecurityScanEndpoint:
         assert data["status"] == "blocked"
         assert data["attack_type"] == "SQLi"
 
-    @patch("security_engine.route.security_route.scan_request",
+    @patch("security_engine.Route.security_route.scan_request",
            return_value={"blocked": True, "attack_type": "XSS", "request_count": 1})
     def test_scan_blocks_xss(self, mock_scan, client):
         resp = client.post("/security/scan", json={
@@ -506,7 +506,7 @@ class TestSecurityScanEndpoint:
         assert resp.status_code == 403
         assert resp.get_json()["attack_type"] == "XSS"
 
-    @patch("security_engine.route.security_route.scan_request",
+    @patch("security_engine.Route.security_route.scan_request",
            return_value={"blocked": False, "attack_type": None, "request_count": 1})
     def test_scan_allows_clean_request(self, mock_scan, client):
         resp = client.post("/security/scan", json={

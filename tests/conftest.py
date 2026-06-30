@@ -7,7 +7,7 @@ import pytest
 PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
 # Set test environment BEFORE importing any project modules, so
-# service/user_service.py's fail-fast JWT_SECRET check and db/database.py's
+# Service/user_service.py's fail-fast JWT_SECRET check and db/database.py's
 # connection pool both pick up test-specific values rather than whatever a
 # local .env file (if any) contains. load_dotenv() never overrides
 # variables that are already set, so this takes priority.

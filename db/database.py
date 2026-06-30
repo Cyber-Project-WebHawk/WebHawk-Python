@@ -45,7 +45,7 @@ def _build_pool():
 def get_connection():
     """
     Borrows a connection from a pool instead of opening a brand-new TCP
-    connection to Postgres on every single repository call (the previous
+    connection to Postgres on every single Repository call (the previous
     behavior - acceptable at student-project scale, but not how this would
     be done at any real production scale). Always pair this with
     release_connection(conn), ideally in a try/finally, to return the

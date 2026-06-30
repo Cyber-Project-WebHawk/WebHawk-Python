@@ -108,7 +108,7 @@ def scan_request(
     Returns {"blocked": bool, "attack_type": str | None}
 
     Fix #6: `backend_key` scopes the rate-limit counter so that two
-    unrelated backends sharing a route name + source IP no longer share a
+    unrelated backends sharing a Route name + source IP no longer share a
     single bucket. Calls made directly to /security/scan (with no
     associated registered backend) use the default "direct" scope.
 
