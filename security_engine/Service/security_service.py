@@ -1,5 +1,5 @@
 import re
-from security_engine.repository.security_repository import (
+from security_engine.Repository.security_repository import (
     log_security_event,
     upsert_rate_limit,
     get_dashboard_data,

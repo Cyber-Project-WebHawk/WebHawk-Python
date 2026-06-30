@@ -4,7 +4,7 @@ just the detection functions themselves. These are fast and a good first
 line of defense; the slower integration tests in test_proxy.py exercise the
 same logic through the real HTTP layer.
 """
-from security_engine.service.security_service import check_sqli, check_xss, _extract_strings
+from security_engine.Service.security_service import check_sqli, check_xss, _extract_strings
 
 
 class TestSQLiDetection:

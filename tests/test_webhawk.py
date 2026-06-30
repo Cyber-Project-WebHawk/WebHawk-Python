@@ -27,47 +27,47 @@ class TestSQLiDetection:
     """Tests for check_sqli() pattern matching."""
 
     def test_detects_or_1_equals_1(self):
-        from security_engine.service.security_service import check_sqli
+        from security_engine.Service.security_service import check_sqli
         assert check_sqli("admin' OR 1=1 --") is True
 
     def test_detects_or_with_strings(self):
-        from security_engine.service.security_service import check_sqli
+        from security_engine.Service.security_service import check_sqli
         assert check_sqli("' OR 'a'='a") is True
 
     def test_detects_union_select(self):
-        from security_engine.service.security_service import check_sqli
+        from security_engine.Service.security_service import check_sqli
         assert check_sqli("' UNION SELECT * FROM users --") is True
 
     def test_detects_double_dash_comment(self):
-        from security_engine.service.security_service import check_sqli
+        from security_engine.Service.security_service import check_sqli
         assert check_sqli("admin'--") is True
 
     def test_detects_hash_comment(self):
-        from security_engine.service.security_service import check_sqli
+        from security_engine.Service.security_service import check_sqli
         assert check_sqli("admin'#") is True
 
     def test_detects_drop_table(self):
-        from security_engine.service.security_service import check_sqli
+        from security_engine.Service.security_service import check_sqli
         assert check_sqli("DROP TABLE users") is True
 
     def test_detects_select_keyword(self):
-        from security_engine.service.security_service import check_sqli
+        from security_engine.Service.security_service import check_sqli
         assert check_sqli("SELECT password FROM users") is True
 
     def test_detects_insert_keyword(self):
-        from security_engine.service.security_service import check_sqli
+        from security_engine.Service.security_service import check_sqli
         assert check_sqli("INSERT INTO users VALUES (1,'x')") is True
 
     def test_allows_clean_username(self):
-        from security_engine.service.security_service import check_sqli
+        from security_engine.Service.security_service import check_sqli
         assert check_sqli("john_doe123") is False
 
     def test_allows_normal_sentence(self):
-        from security_engine.service.security_service import check_sqli
+        from security_engine.Service.security_service import check_sqli
         assert check_sqli("hello world this is a comment") is False
 
     def test_allows_email(self):
-        from security_engine.service.security_service import check_sqli
+        from security_engine.Service.security_service import check_sqli
         assert check_sqli("user@example.com") is False
 
 
@@ -75,39 +75,39 @@ class TestXSSDetection:
     """Tests for check_xss() pattern matching."""
 
     def test_detects_script_tag(self):
-        from security_engine.service.security_service import check_xss
+        from security_engine.Service.security_service import check_xss
         assert check_xss("<script>alert(1)</script>") is True
 
     def test_detects_script_tag_with_spaces(self):
-        from security_engine.service.security_service import check_xss
+        from security_engine.Service.security_service import check_xss
         assert check_xss("< script >alert(1)</ script >") is True
 
     def test_detects_javascript_protocol(self):
-        from security_engine.service.security_service import check_xss
+        from security_engine.Service.security_service import check_xss
         assert check_xss("javascript:alert(1)") is True
 
     def test_detects_onerror_event(self):
-        from security_engine.service.security_service import check_xss
+        from security_engine.Service.security_service import check_xss
         assert check_xss('<img onerror="alert(1)">') is True
 
     def test_detects_onclick_event(self):
-        from security_engine.service.security_service import check_xss
+        from security_engine.Service.security_service import check_xss
         assert check_xss('<a onclick="steal()">click</a>') is True
 
     def test_detects_img_onerror_no_quotes(self):
-        from security_engine.service.security_service import check_xss
+        from security_engine.Service.security_service import check_xss
         assert check_xss("<img src=x onerror=alert(1)>") is True
 
     def test_allows_clean_comment(self):
-        from security_engine.service.security_service import check_xss
+        from security_engine.Service.security_service import check_xss
         assert check_xss("Great product, highly recommended!") is False
 
     def test_allows_plain_html_bold(self):
-        from security_engine.service.security_service import check_xss
+        from security_engine.Service.security_service import check_xss
         assert check_xss("<b>bold text</b>") is False
 
     def test_allows_numbers(self):
-        from security_engine.service.security_service import check_xss
+        from security_engine.Service.security_service import check_xss
         assert check_xss("12345") is False
 
 
@@ -117,7 +117,7 @@ class TestScanRequest:
     @patch("security_engine.Service.security_service.upsert_rate_limit", return_value=(1, False))
     @patch("security_engine.Service.security_service.log_security_event")
     def test_blocks_sqli_in_body(self, mock_log, mock_rate):
-        from security_engine.service.security_service import scan_request
+        from security_engine.Service.security_service import scan_request
         result = scan_request("127.0.0.1", "/login", "POST",
                               {"username": "admin' OR 1=1 --"}, {}, "/login")
         assert result["blocked"] is True
@@ -127,7 +127,7 @@ class TestScanRequest:
     @patch("security_engine.Service.security_service.upsert_rate_limit", return_value=(1, False))
     @patch("security_engine.Service.security_service.log_security_event")
     def test_blocks_xss_in_body(self, mock_log, mock_rate):
-        from security_engine.service.security_service import scan_request
+        from security_engine.Service.security_service import scan_request
         result = scan_request("127.0.0.1", "/comment", "POST",
                               {"text": "<script>alert(1)</script>"}, {}, "/comment")
         assert result["blocked"] is True
@@ -136,7 +136,7 @@ class TestScanRequest:
     @patch("security_engine.Service.security_service.upsert_rate_limit", return_value=(1, False))
     @patch("security_engine.Service.security_service.log_security_event")
     def test_blocks_sqli_in_query_params(self, mock_log, mock_rate):
-        from security_engine.service.security_service import scan_request
+        from security_engine.Service.security_service import scan_request
         result = scan_request("127.0.0.1", "/search", "GET",
                               {}, {"q": "' OR 1=1 --"}, "/search")
         assert result["blocked"] is True
@@ -145,14 +145,14 @@ class TestScanRequest:
     @patch("security_engine.Service.security_service.upsert_rate_limit", return_value=(101, True))
     @patch("security_engine.Service.security_service.log_security_event")
     def test_blocks_rate_limit(self, mock_log, mock_rate):
-        from security_engine.service.security_service import scan_request
+        from security_engine.Service.security_service import scan_request
         result = scan_request("127.0.0.1", "/data", "GET", {}, {}, "/data")
         assert result["blocked"] is True
         assert result["attack_type"] == "Rate Limiting"
 
     @patch("security_engine.Service.security_service.upsert_rate_limit", return_value=(1, False))
     def test_allows_clean_request(self, mock_rate):
-        from security_engine.service.security_service import scan_request
+        from security_engine.Service.security_service import scan_request
         result = scan_request("127.0.0.1", "/data", "GET", {}, {}, "/data")
         assert result["blocked"] is False
         assert result["attack_type"] is None
@@ -160,14 +160,14 @@ class TestScanRequest:
     @patch("security_engine.Service.security_service.upsert_rate_limit", return_value=(101, True))
     @patch("security_engine.Service.security_service.log_security_event")
     def test_sqli_takes_priority_over_rate_limit(self, mock_log, mock_rate):
-        from security_engine.service.security_service import scan_request
+        from security_engine.Service.security_service import scan_request
         result = scan_request("127.0.0.1", "/login", "POST",
                               {"username": "admin' OR 1=1 --"}, {}, "/login")
         assert result["attack_type"] == "SQLi"
 
     @patch("security_engine.Service.security_service.upsert_rate_limit", return_value=(1, False))
     def test_logs_clean_request_as_unblocked(self, mock_rate):
-        from security_engine.service.security_service import scan_request
+        from security_engine.Service.security_service import scan_request
         with patch("security_engine.Service.security_service.log_security_event") as mock_log:
             scan_request("127.0.0.1", "/data", "GET", {}, {}, "/data")
             mock_log.assert_called_once()

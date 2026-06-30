@@ -1,5 +1,5 @@
 from flask import Blueprint, request, jsonify
-from security_engine.service.security_service import scan_request
+from security_engine.Service.security_service import scan_request
 
 security_bp = Blueprint("security", __name__)
 

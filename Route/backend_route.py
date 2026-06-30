@@ -7,7 +7,7 @@ from Service.backend_service import (
     proxy_request,
 )
 from Service.user_service import validate_token
-from security_engine.service.security_service import scan_request
+from security_engine.Service.security_service import scan_request
 
 backend_bp = Blueprint("backend", __name__)
 
