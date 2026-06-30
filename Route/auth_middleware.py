@@ -1,6 +1,6 @@
 from functools import wraps
 from flask import request, jsonify
-from service.user_service import validate_token
+from Service.user_service import validate_token
 
 
 def require_auth(view_func):
