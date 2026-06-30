@@ -6,8 +6,5 @@ __pycache__/
 *.pyc
 *.pyo
 *.pyd
-tests/
-conftest.py
 *.pdf
 *.md
-requirements-dev.txt
