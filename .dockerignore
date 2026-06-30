@@ -1,0 +1,14 @@
+.git
+.gitignore
+.env
+.env.*
+__pycache__/
+*.pyc
+*.pyo
+.idea/
+.vscode/
+venv/
+.venv/
+.pytest_cache/
+test*.sh
+*.postman_collection.json
