@@ -95,3 +95,16 @@ class TestProxyAttackDetection:
             headers={"X-API-Key": api_key},
         )
         assert resp.status_code != 403
+
+    def test_blocks_rate_limit_after_100_requests(self, client):
+        """End-to-end rate limiting against the real DB (no mocks)."""
+        api_key = _get_api_key(client)
+        headers = {"X-API-Key": api_key}
+
+        for _ in range(100):
+            resp = client.get("/backends/proxy/data", headers=headers)
+            assert resp.status_code != 403
+
+        resp = client.get("/backends/proxy/data", headers=headers)
+        assert resp.status_code == 403
+        assert resp.get_json()["attack_type"] == "Rate Limiting"

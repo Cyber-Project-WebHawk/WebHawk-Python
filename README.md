@@ -89,11 +89,15 @@ docker-compose up -d
 This starts 3 containers:
 | Container | What it is | Port |
 |---|---|---|
-| `webhawk_db` | PostgreSQL database | 5432 |
+| `webhawk_db` | PostgreSQL database | 5433 (host) → 5432 (container) |
 | `webhawk_app` | WebHawk security middleware | 5000 |
 | `webhawk_vulnerable` | Vulnerable test backend | 5001 |
 
 ### Step 2 — Create the database tables (first time only)
+
+Tables are created **automatically** when the `webhawk_app` container starts.
+
+If you need to run it manually (non-Docker setup):
 ```bash
 docker exec webhawk_app python db/create_tables.py
 ```
@@ -248,9 +252,12 @@ Body: { "username": "admin", "password": "pass" }
 
 ### Security — `/security`
 
-| Method | Endpoint | Description |
-|---|---|---|
-| POST | `/security/scan` | Manually scan a request for attacks |
+| Method | Endpoint | Auth Required | Description |
+|---|---|---|---|
+| POST | `/security/scan` | None | Manually scan a request for attacks |
+| GET | `/security/dashboard` | JWT token | Analytics: scanned/blocked counts, breakdown, timeline |
+
+Open the visual dashboard at `http://localhost:5000/dashboard` (paste a JWT from `/auth/login`).
 
 **Scan example:**
 ```json
@@ -272,7 +279,7 @@ POST /security/scan
 |---|---|---|
 | SQL Injection | Body, Query Params, Path | `' OR 1=1 --` |
 | XSS | Body, Query Params | `<script>alert(1)</script>` |
-| Rate Limiting | IP per endpoint | 100+ requests/min from same IP |
+| Rate Limiting | IP + endpoint + backend (API key) | 100+ requests/min from same IP |
 
 Blocked requests return:
 ```json
@@ -373,8 +380,9 @@ Headers tab → add: Authorization = Bearer <your_token_from_test_2>
 ```
 Expected `200`:
 ```json
-[{ "id": 1, "name": "my-vulnerable-backend", "target_url": "...", "api_key": "...", "is_active": true }]
+[{ "id": 1, "name": "my-vulnerable-backend", "target_url": "...", "is_active": true }]
 ```
+Note: `api_key` is only returned once at registration, not in the list response.
 
 ---
 
@@ -480,19 +488,23 @@ After logout, using the same token on any protected route returns `401 Session i
 
 ## Running Tests
 
-Install test dependencies first:
+### Option A — Docker (recommended)
+
 ```bash
-pip install -r requirements-dev.txt
+docker compose up -d db
+docker compose --profile test run --rm tester
 ```
 
-Run the full test suite from the **project root**:
+### Option B — Local PostgreSQL
+
+Install test dependencies and ensure PostgreSQL is running with credentials matching `tests/conftest.py` (defaults: user `postgres`, password `webhawk1234`, database recreated as `webhawk_test`):
+
 ```bash
+pip install -r requirements-dev.txt
 pytest tests/ -v
 ```
 
-Expected output: **50 tests passed**.
-
-The tests use mocks — no database connection or running server required.
+Expected output: **127 tests passed** (integration tests use a real PostgreSQL test database).
 
 ---
 

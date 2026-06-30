@@ -62,7 +62,7 @@ def proxy_request(api_key, method, path, headers, body, query_params):
 
     forwarded_headers = {
         k: v for k, v in headers.items()
-        if k.lower() not in ("host", "content-length")
+        if k.lower() not in ("host", "content-length", "x-api-key")
     }
 
     try:

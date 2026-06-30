@@ -10,7 +10,7 @@ services:
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: webhawk1234
     ports:
-      - "5432:5432"
+      - "5433:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
     healthcheck:
@@ -33,6 +33,7 @@ services:
       DB_PASSWORD: webhawk1234
       DB_PORT: 5432
       JWT_SECRET: webhawk_super_secret_key
+      FLASK_DEBUG: "false"
     depends_on:
       db:
         condition: service_healthy

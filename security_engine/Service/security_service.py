@@ -155,6 +155,20 @@ def get_dashboard(backend_key=None, hours=24):
     by attack type, and an hourly timeline of blocked attacks. Clamps
     `hours` to a sane range so a caller can't request an absurdly expensive
     aggregation window.
+
+    Response shape matches static/dashboard.html expectations.
     """
     hours = max(1, min(int(hours), 24 * 30))  # 1 hour .. 30 days
-    return get_dashboard_data(backend_key=backend_key, hours=hours)
+    raw = get_dashboard_data(backend_key=backend_key, hours=hours)
+    return {
+        "total_scanned": raw["total_requests"],
+        "total_blocked": raw["total_blocked"],
+        "breakdown_by_attack_type": [
+            {"attack_type": attack_type, "count": count}
+            for attack_type, count in raw["attacks_by_type"].items()
+        ],
+        "timeline": [
+            {"bucket": entry["hour"], "count": entry["blocked"]}
+            for entry in raw["hourly_timeline"]
+        ],
+    }

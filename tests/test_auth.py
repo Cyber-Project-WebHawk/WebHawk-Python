@@ -15,6 +15,14 @@ class TestRegistration:
         resp = client.post("/auth/register", json={"username": "alice"})
         assert resp.status_code == 400
 
+    def test_register_whitespace_username_rejected(self, client):
+        resp = client.post("/auth/register", json={"username": "   ", "password": "secret123"})
+        assert resp.status_code == 400
+
+    def test_register_short_password_rejected(self, client):
+        resp = client.post("/auth/register", json={"username": "alice", "password": "123"})
+        assert resp.status_code == 400
+
     def test_register_null_body_does_not_crash(self, client):
         """Regression test for Fix #3 (request.json None guard)."""
         resp = client.post("/auth/register", data="null", content_type="application/json")
@@ -38,14 +46,14 @@ class TestLogin:
 
     def test_login_wrong_password(self, client):
         client.post("/auth/register", json={"username": "alice", "password": "secret123"})
-        resp = client.post("/auth/login", json={"username": "alice", "password": "wrong"})
+        resp = client.post("/auth/login", json={"username": "alice", "password": "wrongpass"})
         assert resp.status_code == 401
 
     def test_login_unknown_and_wrong_password_give_same_error(self, client):
         """No username-enumeration leak: both failure modes look identical."""
-        resp1 = client.post("/auth/login", json={"username": "ghost", "password": "x"})
+        resp1 = client.post("/auth/login", json={"username": "ghost", "password": "wrongpass"})
         client.post("/auth/register", json={"username": "alice", "password": "secret123"})
-        resp2 = client.post("/auth/login", json={"username": "alice", "password": "wrong"})
+        resp2 = client.post("/auth/login", json={"username": "alice", "password": "wrongpass"})
         assert resp1.status_code == resp2.status_code == 401
         assert resp1.get_json()["error"] == resp2.get_json()["error"]
 

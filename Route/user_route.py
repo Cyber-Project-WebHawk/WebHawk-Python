@@ -3,15 +3,45 @@ from Service.user_service import register_user, login_user, logout_user, validat
 
 user_bp = Blueprint("user", __name__)
 
+MIN_PASSWORD_LENGTH = 6
+
+
+def _parse_credentials(data):
+    username = data.get("username")
+    password = data.get("password")
+
+    if isinstance(username, str):
+        username = username.strip()
+
+    if not username or not password:
+        return None, None, (jsonify({"error": "username and password are required"}), 400)
+
+    if len(username) > 100:
+        return None, None, (jsonify({"error": "username must be at most 100 characters"}), 400)
+
+    if len(password) < MIN_PASSWORD_LENGTH:
+        return None, None, (
+            jsonify({"error": f"password must be at least {MIN_PASSWORD_LENGTH} characters"}),
+            400,
+        )
+
+    return username, password, None
+
+
+def _extract_bearer_token():
+    auth_header = request.headers.get("Authorization", "")
+    if not auth_header.startswith("Bearer "):
+        return None
+    token = auth_header[7:].strip()
+    return token or None
+
 
 @user_bp.route("/register", methods=["POST"])
 def register():
     data = request.get_json(silent=True) or {}
-    username = data.get("username")
-    password = data.get("password")
-
-    if not username or not password:
-        return jsonify({"error": "username and password are required"}), 400
+    username, password, err = _parse_credentials(data)
+    if err:
+        return err
 
     user, error = register_user(username, password)
     if error:
@@ -23,11 +53,9 @@ def register():
 @user_bp.route("/login", methods=["POST"])
 def login():
     data = request.get_json(silent=True) or {}
-    username = data.get("username")
-    password = data.get("password")
-
-    if not username or not password:
-        return jsonify({"error": "username and password are required"}), 400
+    username, password, err = _parse_credentials(data)
+    if err:
+        return err
 
     ip = request.remote_addr
     result, error = login_user(username, password, ip)
@@ -39,7 +67,7 @@ def login():
 
 @user_bp.route("/logout", methods=["POST"])
 def logout():
-    token = request.headers.get("Authorization", "").replace("Bearer ", "")
+    token = _extract_bearer_token()
     if not token:
         return jsonify({"error": "Authorization header is required"}), 401
 
@@ -52,7 +80,7 @@ def logout():
 
 @user_bp.route("/me", methods=["GET"])
 def me():
-    token = request.headers.get("Authorization", "").replace("Bearer ", "")
+    token = _extract_bearer_token()
     if not token:
         return jsonify({"error": "Authorization header is required"}), 401
 

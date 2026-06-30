@@ -86,7 +86,7 @@
             ],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"name\": \"my-vulnerable-backend\",\n  \"target_url\": \"http://localhost:5001\"\n}"
+              "raw": "{\n  \"name\": \"my-vulnerable-backend\",\n  \"target_url\": \"http://vulnerable_backend:5001\"\n}"
             },
             "url": { "raw": "{{base_url}}/backends/register", "host": ["{{base_url}}"], "path": ["backends", "register"] }
           }

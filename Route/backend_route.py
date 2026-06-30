@@ -7,6 +7,7 @@ from Service.backend_service import (
     proxy_request,
 )
 from Service.user_service import validate_token
+from Repository.backend_repository import get_backend_by_api_key
 from security_engine.Service.security_service import scan_request
 
 backend_bp = Blueprint("backend", __name__)
@@ -14,7 +15,10 @@ backend_bp = Blueprint("backend", __name__)
 
 def _get_authenticated_user():
     """Returns (payload, None) on success or (None, error_response) on failure."""
-    token = request.headers.get("Authorization", "").replace("Bearer ", "")
+    auth_header = request.headers.get("Authorization", "")
+    if not auth_header.startswith("Bearer "):
+        return None, (jsonify({"error": "Authorization header is required"}), 401)
+    token = auth_header[7:].strip()
     if not token:
         return None, (jsonify({"error": "Authorization header is required"}), 401)
     payload, error = validate_token(token)
@@ -96,6 +100,12 @@ def proxy(path):
     api_key = request.headers.get("X-API-Key")
     if not api_key:
         return jsonify({"error": "X-API-Key header is required"}), 401
+
+    backend = get_backend_by_api_key(api_key)
+    if backend is None:
+        return jsonify({"error": "Unknown API key"}), 401
+    if not backend[4]:  # is_active
+        return jsonify({"error": "Backend is disabled"}), 403
 
     ip = request.remote_addr
     method = request.method

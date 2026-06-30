@@ -219,7 +219,7 @@ class TestLogin:
 
     @patch("Route.user_route.login_user", return_value=(None, "Invalid credentials"))
     def test_wrong_credentials_returns_401(self, mock_login, client):
-        resp = client.post("/auth/login", json={"username": "romi", "password": "wrong"})
+        resp = client.post("/auth/login", json={"username": "romi", "password": "wrongpass"})
         assert resp.status_code == 401
 
     def test_missing_password_returns_400(self, client):
@@ -414,9 +414,12 @@ class TestBackendDeactivate:
 
 
 class TestProxy:
+    ACTIVE_BACKEND = (1, "api1", "http://localhost:5001", "somekey", True, 1)
+
+    @patch("Route.backend_route.get_backend_by_api_key", return_value=ACTIVE_BACKEND)
     @patch("Route.backend_route.scan_request",
            return_value={"blocked": True, "attack_type": "SQLi", "request_count": 1})
-    def test_blocks_sqli(self, mock_scan, client):
+    def test_blocks_sqli(self, mock_scan, mock_backend, client):
         resp = client.post(
             "/backends/proxy/login",
             headers={"X-API-Key": "somekey"},
@@ -428,9 +431,10 @@ class TestProxy:
         assert data["attack_type"] == "SQLi"
         assert "message" in data
 
+    @patch("Route.backend_route.get_backend_by_api_key", return_value=ACTIVE_BACKEND)
     @patch("Route.backend_route.scan_request",
            return_value={"blocked": True, "attack_type": "XSS", "request_count": 1})
-    def test_blocks_xss(self, mock_scan, client):
+    def test_blocks_xss(self, mock_scan, mock_backend, client):
         resp = client.post(
             "/backends/proxy/comment",
             headers={"X-API-Key": "somekey"},
@@ -439,9 +443,10 @@ class TestProxy:
         assert resp.status_code == 403
         assert resp.get_json()["attack_type"] == "XSS"
 
+    @patch("Route.backend_route.get_backend_by_api_key", return_value=ACTIVE_BACKEND)
     @patch("Route.backend_route.scan_request",
            return_value={"blocked": True, "attack_type": "Rate Limiting", "request_count": 101})
-    def test_blocks_rate_limit(self, mock_scan, client):
+    def test_blocks_rate_limit(self, mock_scan, mock_backend, client):
         resp = client.get("/backends/proxy/data", headers={"X-API-Key": "somekey"})
         assert resp.status_code == 403
         assert resp.get_json()["attack_type"] == "Rate Limiting"
@@ -451,11 +456,12 @@ class TestProxy:
                            json={"username": "admin", "password": "pass"})
         assert resp.status_code == 401
 
+    @patch("Route.backend_route.get_backend_by_api_key", return_value=ACTIVE_BACKEND)
     @patch("Route.backend_route.scan_request",
            return_value={"blocked": False, "attack_type": None, "request_count": 1})
     @patch("Route.backend_route.proxy_request",
            return_value=({"message": "Welcome admin!", "role": "admin"}, 200))
-    def test_clean_request_forwarded_to_backend(self, mock_proxy, mock_scan, client):
+    def test_clean_request_forwarded_to_backend(self, mock_proxy, mock_scan, mock_backend, client):
         resp = client.post(
             "/backends/proxy/login",
             headers={"X-API-Key": "validkey"},
@@ -464,11 +470,8 @@ class TestProxy:
         assert resp.status_code == 200
         assert resp.get_json()["message"] == "Welcome admin!"
 
-    @patch("Route.backend_route.scan_request",
-           return_value={"blocked": False, "attack_type": None, "request_count": 1})
-    @patch("Route.backend_route.proxy_request",
-           return_value=({"error": "Unknown API key"}, 401))
-    def test_invalid_api_key_rejected_by_proxy(self, mock_proxy, mock_scan, client):
+    @patch("Route.backend_route.get_backend_by_api_key", return_value=None)
+    def test_invalid_api_key_rejected_by_proxy(self, mock_backend, client):
         resp = client.post(
             "/backends/proxy/login",
             headers={"X-API-Key": "badkey"},
