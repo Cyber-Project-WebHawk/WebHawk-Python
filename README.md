@@ -124,10 +124,14 @@ docker-compose down
 
 ### 1. Install dependencies
 ```bash
-pip install flask psycopg2-binary python-dotenv bcrypt pyjwt requests
+pip install -r requirements.txt
 ```
 
 ### 2. Create `.env` file in the project root
+Copy `.env.example` and fill in your values:
+```bash
+cp .env.example .env
+```
 ```
 DB_HOST=localhost
 DB_NAME=webhawk
@@ -138,9 +142,9 @@ JWT_SECRET=your_long_random_secret
 ```
 
 ### 3. Create the database tables
+Run from the **project root**:
 ```bash
-cd db
-python create_tables.py
+python db/create_tables.py
 ```
 
 ### 4. Run WebHawk
@@ -198,17 +202,23 @@ Response:
 
 ### Backends — `/backends`
 
-| Method | Endpoint | Description |
-|---|---|---|
-| POST | `/backends/register` | Register a backend and get API key |
-| GET | `/backends/` | List all registered backends |
-| PATCH | `/backends/activate` | Activate a backend |
-| PATCH | `/backends/deactivate` | Deactivate a backend |
-| ANY | `/backends/proxy/<path>` | Proxy a request through WebHawk |
+> **All `/backends/register`, `/backends/`, `/backends/activate`, and `/backends/deactivate` endpoints require a valid JWT token.**
+> Add the header: `Authorization: Bearer <token>` (token from `/auth/login`).
+> The proxy endpoint `/backends/proxy/<path>` uses `X-API-Key` instead.
+
+| Method | Endpoint | Auth Required | Description |
+|---|---|---|---|
+| POST | `/backends/register` | JWT token | Register a backend and get API key |
+| GET | `/backends/` | JWT token | List all registered backends |
+| PATCH | `/backends/activate` | JWT token | Activate a backend |
+| PATCH | `/backends/deactivate` | JWT token | Deactivate a backend |
+| ANY | `/backends/proxy/<path>` | X-API-Key header | Proxy a request through WebHawk |
 
 **Register a backend:**
-```json
+```
 POST /backends/register
+Headers: Authorization: Bearer <your_jwt_token>
+Body:
 {
   "name": "my-api",
   "target_url": "http://localhost:5001"
@@ -320,10 +330,24 @@ Expected `200`:
 
 ---
 
+### Test 2b — Verify current user (`/auth/me`)
+```
+Method: GET
+URL: http://localhost:5000/auth/me
+Headers tab → add: Authorization = Bearer <your_token_from_test_2>
+```
+Expected `200`:
+```json
+{ "user_id": 1, "username": "romi" }
+```
+
+---
+
 ### Test 3 — Register a backend
 ```
 Method: POST
 URL: http://localhost:5000/backends/register
+Headers tab → add: Authorization = Bearer <your_token_from_test_2>
 Body:
 {
   "name": "my-vulnerable-backend",
@@ -335,6 +359,43 @@ Expected `201`:
 { "api_key": "f47ac10b-...", "name": "my-vulnerable-backend", "is_active": true }
 ```
 **Copy the api_key value — you will need it for proxy requests.**
+
+---
+
+### Test 3b — List all registered backends
+```
+Method: GET
+URL: http://localhost:5000/backends/
+Headers tab → add: Authorization = Bearer <your_token_from_test_2>
+```
+Expected `200`:
+```json
+[{ "id": 1, "name": "my-vulnerable-backend", "target_url": "...", "api_key": "...", "is_active": true }]
+```
+
+---
+
+### Test 3c — Deactivate a backend
+```
+Method: PATCH
+URL: http://localhost:5000/backends/deactivate
+Headers tab → add: Authorization = Bearer <your_token_from_test_2>
+Body:
+{
+  "api_key": "<your_api_key_from_test_3>"
+}
+```
+Expected `200`:
+```json
+{ "id": 1, "name": "my-vulnerable-backend", "is_active": false }
+```
+Re-activate it before continuing:
+```
+Method: PATCH
+URL: http://localhost:5000/backends/activate
+Headers tab → add: Authorization = Bearer <your_token_from_test_2>
+Body: { "api_key": "<your_api_key>" }
+```
 
 ---
 
@@ -400,6 +461,38 @@ You should see one row per blocked attack.
 
 ---
 
+### Test 8 — Logout
+```
+Method: POST
+URL: http://localhost:5000/auth/logout
+Headers tab → add: Authorization = Bearer <your_token_from_test_2>
+```
+Expected `200`:
+```json
+{ "message": "Logged out successfully" }
+```
+After logout, using the same token on any protected route returns `401 Session is not active`.
+
+---
+
+## Running Tests
+
+Install test dependencies first:
+```bash
+pip install -r requirements-dev.txt
+```
+
+Run the full test suite from the **project root**:
+```bash
+pytest tests/ -v
+```
+
+Expected output: **50 tests passed**.
+
+The tests use mocks — no database connection or running server required.
+
+---
+
 ## Technologies
 
 | Technology | Purpose |
@@ -410,3 +503,4 @@ You should see one row per blocked attack.
 | PyJWT | JWT token generation and validation |
 | requests | HTTP forwarding (proxy) |
 | python-dotenv | Environment variable management |
+| pytest | Test suite (`pip install -r requirements-dev.txt`) |

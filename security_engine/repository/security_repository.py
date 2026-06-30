@@ -17,24 +17,6 @@ def log_security_event(ip, endpoint, method, attack_type, was_blocked):
     conn.close()
 
 
-def get_request_count(ip, endpoint, window_seconds=60):
-    conn = get_connection()
-    cursor = conn.cursor()
-    cursor.execute(
-        """
-        SELECT request_count, is_blocked
-        FROM rate_limit
-        WHERE ip = %s AND endpoint = %s
-          AND window_start > NOW() - INTERVAL '%s seconds'
-        """,
-        (ip, endpoint, window_seconds),
-    )
-    row = cursor.fetchone()
-    cursor.close()
-    conn.close()
-    return row  # (request_count, is_blocked) or None
-
-
 def upsert_rate_limit(ip, endpoint, window_seconds=60):
     conn = get_connection()
     cursor = conn.cursor()

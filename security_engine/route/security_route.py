@@ -6,12 +6,13 @@ security_bp = Blueprint("security", __name__)
 
 @security_bp.route("/scan", methods=["POST"])
 def scan():
+    data = request.get_json(silent=True) or {}
     ip = request.remote_addr
-    endpoint = request.json.get("endpoint", "/")
-    method = request.json.get("method", "GET")
-    body = request.json.get("body", {})
-    query_params = request.json.get("query_params", {})
-    path = request.json.get("path", "/")
+    endpoint = data.get("endpoint", "/")
+    method = data.get("method", "GET")
+    body = data.get("body", {})
+    query_params = data.get("query_params", {})
+    path = data.get("path", "/")
 
     result = scan_request(ip, endpoint, method, body, query_params, path)
 

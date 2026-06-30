@@ -1,0 +1,13 @@
+.env
+.env.*
+.git/
+.gitignore
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+tests/
+conftest.py
+*.pdf
+*.md
+requirements-dev.txt

@@ -82,4 +82,8 @@ def validate_token(token):
     if session is None or not session[5]:  # is_active
         return None, "Session is not active"
 
+    expires_at = session[4]  # expires_at column
+    if expires_at < datetime.utcnow():
+        return None, "Session has expired"
+
     return payload, None

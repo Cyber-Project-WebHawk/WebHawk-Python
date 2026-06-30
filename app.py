@@ -10,4 +10,4 @@ app.register_blueprint(backend_bp, url_prefix="/backends")
 app.register_blueprint(user_bp, url_prefix="/auth")
 
 if __name__ == "__main__":
-    app.run(debug=True, port=5000)
+    app.run(host="0.0.0.0", port=5000, debug=False)
