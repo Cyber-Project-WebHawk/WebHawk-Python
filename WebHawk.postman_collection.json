@@ -1,0 +1,247 @@
+{
+  "info": {
+    "name": "WebHawk API",
+    "description": "WebHawk SaaS middleware security platform. Covers user auth, backend registration/management (now JWT-authenticated, see Fix #4), the security scan endpoint, and the attack-detection proxy.\n\nHow to use:\n1. Run 'Register User' then 'Login' - login automatically saves {{token}} for you.\n2. Run 'Register Backend' - it automatically saves {{api_key}} for you.\n3. Everything else just works using those saved variables.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    { "key": "base_url", "value": "http://localhost:5000" },
+    { "key": "token", "value": "" },
+    { "key": "api_key", "value": "" }
+  ],
+  "item": [
+    {
+      "name": "Auth",
+      "item": [
+        {
+          "name": "Register User",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"username\": \"romi\",\n  \"password\": \"securepass123\"\n}"
+            },
+            "url": { "raw": "{{base_url}}/auth/register", "host": ["{{base_url}}"], "path": ["auth", "register"] }
+          }
+        },
+        {
+          "name": "Login",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "if (pm.response.code === 200) {",
+                  "    const body = pm.response.json();",
+                  "    pm.collectionVariables.set('token', body.token);",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"username\": \"romi\",\n  \"password\": \"securepass123\"\n}"
+            },
+            "url": { "raw": "{{base_url}}/auth/login", "host": ["{{base_url}}"], "path": ["auth", "login"] }
+          }
+        },
+        {
+          "name": "Get Current User (/auth/me)",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{token}}" }],
+            "url": { "raw": "{{base_url}}/auth/me", "host": ["{{base_url}}"], "path": ["auth", "me"] }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Backend Management (requires auth - Fix #4)",
+      "item": [
+        {
+          "name": "Register Backend",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "if (pm.response.code === 201) {",
+                  "    const body = pm.response.json();",
+                  "    pm.collectionVariables.set('api_key', body.api_key);",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{token}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"my-vulnerable-backend\",\n  \"target_url\": \"http://localhost:5001\"\n}"
+            },
+            "url": { "raw": "{{base_url}}/backends/register", "host": ["{{base_url}}"], "path": ["backends", "register"] }
+          }
+        },
+        {
+          "name": "List My Backends",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{token}}" }],
+            "url": { "raw": "{{base_url}}/backends/", "host": ["{{base_url}}"], "path": ["backends", ""] }
+          }
+        },
+        {
+          "name": "Deactivate Backend",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{token}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"api_key\": \"{{api_key}}\"\n}"
+            },
+            "url": { "raw": "{{base_url}}/backends/deactivate", "host": ["{{base_url}}"], "path": ["backends", "deactivate"] }
+          }
+        },
+        {
+          "name": "Activate Backend",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{token}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"api_key\": \"{{api_key}}\"\n}"
+            },
+            "url": { "raw": "{{base_url}}/backends/activate", "host": ["{{base_url}}"], "path": ["backends", "activate"] }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Proxy (X-API-Key auth, unchanged)",
+      "item": [
+        {
+          "name": "Proxy - Clean Request (POST)",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "X-API-Key", "value": "{{api_key}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"username\": \"admin\",\n  \"password\": \"admin123\"\n}"
+            },
+            "url": { "raw": "{{base_url}}/backends/proxy/login", "host": ["{{base_url}}"], "path": ["backends", "proxy", "login"] }
+          }
+        },
+        {
+          "name": "Proxy - SQL Injection Attempt (blocked)",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "X-API-Key", "value": "{{api_key}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"username\": \"admin' OR 1=1 --\",\n  \"password\": \"x\"\n}"
+            },
+            "url": { "raw": "{{base_url}}/backends/proxy/login", "host": ["{{base_url}}"], "path": ["backends", "proxy", "login"] }
+          }
+        },
+        {
+          "name": "Proxy - XSS Attempt (blocked)",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "X-API-Key", "value": "{{api_key}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"text\": \"<script>alert(1)</script>\"\n}"
+            },
+            "url": { "raw": "{{base_url}}/backends/proxy/comment", "host": ["{{base_url}}"], "path": ["backends", "proxy", "comment"] }
+          }
+        },
+        {
+          "name": "Proxy - GET passthrough",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "X-API-Key", "value": "{{api_key}}" }],
+            "url": { "raw": "{{base_url}}/backends/proxy/data", "host": ["{{base_url}}"], "path": ["backends", "proxy", "data"] }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Security Engine",
+      "item": [
+        {
+          "name": "Scan - Clean Request (allowed)",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"endpoint\": \"/login\",\n  \"method\": \"POST\",\n  \"body\": { \"username\": \"romi\" },\n  \"query_params\": {},\n  \"path\": \"/login\"\n}"
+            },
+            "url": { "raw": "{{base_url}}/security/scan", "host": ["{{base_url}}"], "path": ["security", "scan"] }
+          }
+        },
+        {
+          "name": "Scan - SQL Injection (blocked)",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"endpoint\": \"/login\",\n  \"method\": \"POST\",\n  \"body\": { \"username\": \"admin' OR 1=1 --\" },\n  \"query_params\": {},\n  \"path\": \"/login\"\n}"
+            },
+            "url": { "raw": "{{base_url}}/security/scan", "host": ["{{base_url}}"], "path": ["security", "scan"] }
+          }
+        },
+        {
+          "name": "Scan - XSS (blocked)",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"endpoint\": \"/comment\",\n  \"method\": \"POST\",\n  \"body\": { \"text\": \"<script>alert(1)</script>\" },\n  \"query_params\": {},\n  \"path\": \"/comment\"\n}"
+            },
+            "url": { "raw": "{{base_url}}/security/scan", "host": ["{{base_url}}"], "path": ["security", "scan"] }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Cleanup",
+      "item": [
+        {
+          "name": "Logout",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Authorization", "value": "Bearer {{token}}" }],
+            "url": { "raw": "{{base_url}}/auth/logout", "host": ["{{base_url}}"], "path": ["auth", "logout"] }
+          }
+        }
+      ]
+    }
+  ]
+}
