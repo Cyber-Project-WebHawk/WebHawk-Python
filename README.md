@@ -115,8 +115,11 @@ docker-compose down
 |---|---|
 | Start | `docker-compose up -d` |
 | Stop | `docker-compose down` |
+| Stop + wipe database | `docker-compose down -v` |
+| Rebuild after code changes | `docker-compose up -d --build` |
 | View app logs | `docker logs webhawk_app` |
-| View DB | `docker exec -it webhawk_db psql -U postgres -d webhawk -c "SELECT * FROM security_logs;"` |
+| View DB logs | `docker logs webhawk_db` |
+| Query security logs | `docker exec -it webhawk_db psql -U postgres -d webhawk -c "SELECT * FROM security_logs;"` |
 
 ---
 
