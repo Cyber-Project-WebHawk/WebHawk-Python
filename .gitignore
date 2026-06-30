@@ -46,6 +46,7 @@ venv.bak/
 # ---- Environment & Secrets (CRITICAL — never commit these) ----
 .env
 .env.*
+!.env.example
 .envrc
 *.pem
 *.key
