@@ -10,6 +10,21 @@ jobs:
   test:
     runs-on: ubuntu-latest
 
+    services:
+      postgres:
+        image: postgres:15
+        env:
+          POSTGRES_DB: postgres
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: webhawk1234
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -26,3 +41,10 @@ jobs:
 
       - name: Run tests
         run: pytest tests/ -v
+        env:
+          TEST_DB_HOST: localhost
+          TEST_DB_NAME: webhawk_test
+          TEST_DB_USER: postgres
+          TEST_DB_PASSWORD: webhawk1234
+          TEST_DB_PORT: 5432
+          JWT_SECRET: pytest-test-secret-do-not-use-in-production
