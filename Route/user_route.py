@@ -1,12 +1,14 @@
 from flask import Blueprint, request, jsonify
-from Service.user_service import register_user, login_user, logout_user, validate_token
+from service.user_service import register_user, login_user, logout_user, validate_token
 
 user_bp = Blueprint("user", __name__)
 
 
 @user_bp.route("/register", methods=["POST"])
 def register():
-    data = request.json
+    # Fix #3: never raises, never None - safe even on missing Content-Type,
+    # malformed JSON, or a literal `null` body.
+    data = request.get_json(silent=True) or {}
     username = data.get("username")
     password = data.get("password")
 
@@ -22,7 +24,7 @@ def register():
 
 @user_bp.route("/login", methods=["POST"])
 def login():
-    data = request.json
+    data = request.get_json(silent=True) or {}
     username = data.get("username")
     password = data.get("password")
 
@@ -31,6 +33,8 @@ def login():
 
     ip = request.remote_addr
     result, error = login_user(username, password, ip)
+    if error == "Could not create session, please try again":
+        return jsonify({"error": error}), 500
     if error:
         return jsonify({"error": error}), 401
 

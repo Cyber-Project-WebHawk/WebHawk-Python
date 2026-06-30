@@ -4,6 +4,7 @@ A smart middleware service that protects backend applications from common web at
 
 Developers register their backend with WebHawk. From that point, every incoming request passes through WebHawk first — scanned for attacks before being forwarded to the real server.
 
+
 ---
 
 ## Team
@@ -41,25 +42,39 @@ Client Request
 
 ```
 WebHawk-Python/
-├── app.py                          # Flask entry point
+├── app.py                          # Flask entry point + global error handlers
+├── requirements.txt                # Pinned dependencies
+├── requirements-dev.txt            # + pytest, for running the test suite
+├── pytest.ini
+├── .dockerignore
+├── WebHawk.postman_collection.json # Importable Postman collection (all endpoints)
+├── static/
+│   └── dashboard.html              # Visual analytics dashboard (bonus feature)
+├── tests/                          # pytest suite — unit + integration tests
+│   ├── conftest.py                 # isolated test DB + Flask test client fixtures
+│   ├── test_security_service.py    # SQLi/XSS detection, nested-JSON scanning
+│   ├── test_auth.py                # register/login/logout/JWT edge cases
+│   ├── test_backends.py            # ownership, auth, name-uniqueness
+│   └── test_proxy.py               # attack blocking through the proxy
 ├── db/
-│   ├── database.py                 # PostgreSQL connection
-│   └── create_tables.py            # Creates all 5 DB tables
-├── Route/                          # HTTP endpoints
+│   ├── database.py                 # PostgreSQL connection pool (with retry/backoff)
+│   └── create_tables.py            # Creates/migrates all 5 DB tables
+├── route/                          # HTTP endpoints
+│   ├── auth_middleware.py          # @require_auth decorator (JWT on backend mgmt routes)
 │   ├── user_route.py               # /auth/*
 │   └── backend_route.py            # /backends/*
-├── Service/                        # Business logic
+├── service/                        # Business logic
 │   ├── user_service.py             # bcrypt + JWT
-│   └── backend_service.py          # API key generation + proxy
-├── Repository/                     # Database queries
+│   └── backend_service.py          # API key generation + proxy (with error handling)
+├── repository/                     # Database queries
 │   ├── user_repository.py          # users + user_sessions
-│   └── backend_repository.py       # backend_registration
+│   └── backend_repository.py       # backend_registration (owned per-user)
 ├── security_engine/                # Attack detection
-│   ├── route/security_route.py     # /security/*
+│   ├── route/security_route.py     # /security/* (+ /security/dashboard)
 │   ├── service/security_service.py # SQLi, XSS, Rate Limit logic
-│   └── repository/security_repository.py # security_logs + rate_limit
+│   └── repository/security_repository.py # security_logs + rate_limit + dashboard queries
 └── vulnerable_backend/
-    └── app.py                      # Intentionally vulnerable test target (port 5001)
+    └── app.py                      # Genuinely vulnerable test target (port 5001) - see warning below
 ```
 
 ---
@@ -70,9 +85,9 @@ WebHawk-Python/
 |---|---|
 | `users` | Username, encrypted password, join date |
 | `user_sessions` | JWT token, IP, expiry, active status |
-| `backend_registration` | Service name, target URL, API key, active status |
-| `security_logs` | Blocked requests — IP, endpoint, attack type, timestamp |
-| `rate_limit` | Request count per IP per endpoint per time window |
+| `backend_registration` | Service name, target URL, API key, active status, owning user |
+| `security_logs` | Every scanned request — IP, endpoint, attack type, blocked?, which backend, timestamp |
+| `rate_limit` | Request count per IP per endpoint per backend per time window |
 
 ---
 
@@ -124,7 +139,7 @@ docker-compose down
 
 ### 1. Install dependencies
 ```bash
-pip install flask psycopg2-binary python-dotenv bcrypt pyjwt requests
+pip install -r requirements.txt
 ```
 
 ### 2. Create `.env` file in the project root
@@ -135,6 +150,10 @@ DB_USER=postgres
 DB_PASSWORD=your_password
 DB_PORT=5432
 JWT_SECRET=your_long_random_secret
+# Never set this to true outside of local development - it enables the
+# interactive Werkzeug debugger, which leaks source code and stack traces
+# on any unhandled error. Omit it (defaults to false) for any shared/demo use.
+FLASK_DEBUG=true
 ```
 
 ### 3. Create the database tables
@@ -155,6 +174,24 @@ Open a second terminal:
 python vulnerable_backend/app.py
 ```
 Runs on `http://localhost:5001`
+
+> ⚠️ **This backend is genuinely vulnerable, not a simulation.** Its
+> `/login` and `/data` endpoints build real SQL queries via string
+> formatting, and `/comment` stores unsanitized input. Hitting it directly
+> (bypassing WebHawk) really does let you bypass auth with
+> `admin' OR '1'='1` or exfiltrate every stored password with a UNION
+> SELECT — that's the point: it's the "before" half of the demo. Never run
+> it anywhere reachable from outside your own machine.
+
+### 6. Run the test suite (optional)
+```bash
+pip install -r requirements-dev.txt
+pytest
+```
+Tests spin up an isolated `webhawk_test` database (never your real one),
+truncating tables between tests for isolation. Override `TEST_DB_HOST`,
+`TEST_DB_NAME`, etc. as environment variables if your Postgres setup needs
+different connection details than the defaults.
 
 ---
 
@@ -198,17 +235,24 @@ Response:
 
 ### Backends — `/backends`
 
-| Method | Endpoint | Description |
-|---|---|---|
-| POST | `/backends/register` | Register a backend and get API key |
-| GET | `/backends/` | List all registered backends |
-| PATCH | `/backends/activate` | Activate a backend |
-| PATCH | `/backends/deactivate` | Deactivate a backend |
-| ANY | `/backends/proxy/<path>` | Proxy a request through WebHawk |
+`/register`, `/` (list), `/activate`, and `/deactivate` now require a valid
+JWT (`Authorization: Bearer <token>` from `/auth/login`) and are scoped to
+the authenticated caller — you can only see, activate, or deactivate your
+**own** backends. `/proxy/<path>` is unchanged and still uses `X-API-Key`,
+since it's called by the backend's own end users, not by the dashboard owner.
+
+| Method | Endpoint | Auth | Description |
+|---|---|---|---|
+| POST | `/backends/register` | JWT | Register a backend and get an API key |
+| GET | `/backends/` | JWT | List **your own** registered backends (no API keys returned — see below) |
+| PATCH | `/backends/activate` | JWT | Activate one of **your own** backends |
+| PATCH | `/backends/deactivate` | JWT | Deactivate one of **your own** backends |
+| ANY (GET/POST/PUT/PATCH/DELETE) | `/backends/proxy/<path>` | `X-API-Key` | Proxy a request through WebHawk |
 
 **Register a backend:**
 ```json
 POST /backends/register
+Headers: Authorization: Bearer <your JWT token>
 {
   "name": "my-api",
   "target_url": "http://localhost:5001"
@@ -223,6 +267,10 @@ Response:
   "is_active": true
 }
 ```
+The API key is only ever shown **once**, in this response — `GET /backends/`
+deliberately omits it, the same way most platforms only display a freshly
+generated secret a single time. Backend names are unique per-account (two
+different users may each register a backend with the same name).
 
 **Proxy a request:**
 ```
@@ -235,9 +283,10 @@ Body: { "username": "admin", "password": "pass" }
 
 ### Security — `/security`
 
-| Method | Endpoint | Description |
-|---|---|---|
-| POST | `/security/scan` | Manually scan a request for attacks |
+| Method | Endpoint | Auth | Description |
+|---|---|---|---|
+| POST | `/security/scan` | none | Manually scan a request for attacks |
+| GET | `/security/dashboard` | JWT | Analytics: totals, breakdown by attack type, timeline |
 
 **Scan example:**
 ```json
@@ -251,15 +300,41 @@ POST /security/scan
 }
 ```
 
+**Dashboard example:**
+```json
+GET /security/dashboard?hours=24
+Headers: Authorization: Bearer <your JWT token>
+```
+```json
+{
+  "total_scanned": 142,
+  "total_blocked": 17,
+  "breakdown_by_attack_type": [
+    { "attack_type": "SQLi", "count": 10 },
+    { "attack_type": "XSS", "count": 7 }
+  ],
+  "timeline": [
+    { "bucket": "2026-06-25T14:00:00", "count": 5 },
+    { "bucket": "2026-06-25T15:00:00", "count": 12 }
+  ]
+}
+```
+Add `?backend_key=<api_key>` to scope these figures to one specific
+backend instead of the whole platform.
+
+**A small visual dashboard** (bar chart of attack types + a timeline
+graph, using Chart.js) is served at `http://localhost:5000/static/dashboard.html`
+— paste a JWT token from `/auth/login` into the page to load it.
+
 ---
 
 ## Attack Detection
 
 | Attack | Where Checked | Example |
 |---|---|---|
-| SQL Injection | Body, Query Params, Path | `' OR 1=1 --` |
-| XSS | Body, Query Params | `<script>alert(1)</script>` |
-| Rate Limiting | IP per endpoint | 100+ requests/min from same IP |
+| SQL Injection | Body, Query Params, Path (recursively through nested JSON) | `' OR 1=1 --` |
+| XSS | Body, Query Params (recursively through nested JSON) | `<script>alert(1)</script>` |
+| Rate Limiting | IP per endpoint per backend | 100+ requests/min from the same IP to the same path on the same backend |
 
 Blocked requests return:
 ```json
@@ -275,9 +350,16 @@ HTTP 403
 
 ## Testing with Postman
 
+A ready-to-import collection covering every endpoint is included:
+[`WebHawk.postman_collection.json`](./WebHawk.postman_collection.json).
+Import it into Postman (File → Import) and run it top-to-bottom — Login and
+Register Backend automatically save their token/api_key for the rest of the
+collection to use.
+
 Postman is a free app for sending HTTP requests. Download it from [postman.com/downloads](https://www.postman.com/downloads/).
 
-In Postman, for every request:
+If you'd rather build requests manually instead of importing the collection,
+for every request:
 1. Select the **method** (GET, POST, PATCH)
 2. Enter the **URL**
 3. Go to **Body → raw → JSON** and paste the JSON body
@@ -324,6 +406,7 @@ Expected `200`:
 ```
 Method: POST
 URL: http://localhost:5000/backends/register
+Headers tab → add: Authorization = Bearer <your JWT token from Test 2>
 Body:
 {
   "name": "my-vulnerable-backend",
@@ -334,7 +417,8 @@ Expected `201`:
 ```json
 { "api_key": "f47ac10b-...", "name": "my-vulnerable-backend", "is_active": true }
 ```
-**Copy the api_key value — you will need it for proxy requests.**
+**Copy the api_key value — you will need it for proxy requests.** This is
+the only time the API key is returned; `GET /backends/` won't show it again.
 
 ---
 
