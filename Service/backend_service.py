@@ -73,4 +73,7 @@ def proxy_request(api_key, method, path, headers, body, query_params):
         timeout=10,
     )
 
-    return response.json(), response.status_code
+    try:
+        return response.json(), response.status_code
+    except Exception:
+        return {"error": "Backend returned a non-JSON response"}, 502

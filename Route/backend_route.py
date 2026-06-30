@@ -6,14 +6,30 @@ from Service.backend_service import (
     list_backends,
     proxy_request,
 )
+from Service.user_service import validate_token
 from security_engine.service.security_service import scan_request
 
 backend_bp = Blueprint("backend", __name__)
 
 
+def _get_authenticated_user():
+    """Returns (payload, None) on success or (None, error_response) on failure."""
+    token = request.headers.get("Authorization", "").replace("Bearer ", "")
+    if not token:
+        return None, (jsonify({"error": "Authorization header is required"}), 401)
+    payload, error = validate_token(token)
+    if error:
+        return None, (jsonify({"error": error}), 401)
+    return payload, None
+
+
 @backend_bp.route("/register", methods=["POST"])
 def register():
-    data = request.json
+    user, err = _get_authenticated_user()
+    if err:
+        return err
+
+    data = request.get_json(silent=True) or {}
     name = data.get("name")
     target_url = data.get("target_url")
 
@@ -26,13 +42,22 @@ def register():
 
 @backend_bp.route("/", methods=["GET"])
 def list_all():
+    user, err = _get_authenticated_user()
+    if err:
+        return err
+
     backends = list_backends()
     return jsonify(backends), 200
 
 
 @backend_bp.route("/activate", methods=["PATCH"])
 def activate():
-    api_key = request.json.get("api_key")
+    user, err = _get_authenticated_user()
+    if err:
+        return err
+
+    data = request.get_json(silent=True) or {}
+    api_key = data.get("api_key")
     if not api_key:
         return jsonify({"error": "api_key is required"}), 400
 
@@ -45,7 +70,12 @@ def activate():
 
 @backend_bp.route("/deactivate", methods=["PATCH"])
 def deactivate():
-    api_key = request.json.get("api_key")
+    user, err = _get_authenticated_user()
+    if err:
+        return err
+
+    data = request.get_json(silent=True) or {}
+    api_key = data.get("api_key")
     if not api_key:
         return jsonify({"error": "api_key is required"}), 400
 
@@ -56,7 +86,7 @@ def deactivate():
     return jsonify(result), 200
 
 
-@backend_bp.route("/proxy/<path:path>", methods=["GET", "POST", "PUT", "DELETE"])
+@backend_bp.route("/proxy/<path:path>", methods=["GET", "POST", "PUT", "PATCH", "DELETE"])
 def proxy(path):
     api_key = request.headers.get("X-API-Key")
     if not api_key:
@@ -64,7 +94,7 @@ def proxy(path):
 
     ip = request.remote_addr
     method = request.method
-    body = request.json if request.is_json else {}
+    body = request.get_json(silent=True) or {}
     query_params = request.args.to_dict()
 
     scan_result = scan_request(ip, path, method, body, query_params, path)

@@ -1,4 +1,7 @@
-from database import get_connection
+import sys
+import os
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
+from db.database import get_connection
 
 
 def create_tables():

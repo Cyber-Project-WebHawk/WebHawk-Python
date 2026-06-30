@@ -1,9 +1,10 @@
 import bcrypt
 import jwt
 import os
-from datetime import datetime, timedelta
+import uuid
+from datetime import datetime, timedelta, timezone
 from dotenv import load_dotenv
-from Repository.user_repository import (
+from repository.user_repository import (
     create_user,
     get_user_by_username,
     create_session,
@@ -13,7 +14,15 @@ from Repository.user_repository import (
 
 load_dotenv()
 
-JWT_SECRET = os.getenv("JWT_SECRET", "webhawk_secret_key")
+JWT_SECRET = os.getenv("JWT_SECRET")
+if not JWT_SECRET:
+    # Fail fast and loud rather than silently signing tokens with a default
+    # secret that's sitting in plain sight in this very file's git history.
+    raise RuntimeError(
+        "JWT_SECRET environment variable is not set. Refusing to start with "
+        "an insecure default signing key - set JWT_SECRET in your .env file "
+        "(or in your deployment environment) before running the app."
+    )
 JWT_EXPIRY_HOURS = 24
 
 
@@ -46,19 +55,28 @@ def login_user(username, password, ip):
     if not password_match:
         return None, "Invalid credentials"
 
-    expires_at = datetime.utcnow() + timedelta(hours=JWT_EXPIRY_HOURS)
+    expires_at = datetime.now(timezone.utc).replace(tzinfo=None) + timedelta(hours=JWT_EXPIRY_HOURS)
 
     token = jwt.encode(
         {
             "user_id": user_id,
             "username": user_name,
             "exp": expires_at,
+            # JWT's "exp" claim is truncated to whole seconds, so two logins
+            # by the same user within the same second would otherwise
+            # produce a byte-identical token and collide on
+            # user_sessions.token's UNIQUE constraint. "jti" (JWT ID) is the
+            # standard RFC 7519 claim for exactly this: a unique identifier
+            # per token, regardless of how fast logins happen.
+            "jti": str(uuid.uuid4()),
         },
         JWT_SECRET,
         algorithm="HS256",
     )
 
-    create_session(user_id, token, ip, expires_at)
+    session_id = create_session(user_id, token, ip, expires_at)
+    if session_id is None:
+        return None, "Could not create session, please try again"
 
     return {"token": token, "expires_at": expires_at.isoformat()}, None
 
@@ -81,5 +99,9 @@ def validate_token(token):
     session = get_session_by_token(token)
     if session is None or not session[5]:  # is_active
         return None, "Session is not active"
+
+    expires_at = session[4]  # expires_at column
+    if expires_at < datetime.utcnow():
+        return None, "Session has expired"
 
     return payload, None

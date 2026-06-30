@@ -1,0 +1,275 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>WebHawk — Security Analytics</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.4/chart.umd.min.js"></script>
+<style>
+  :root {
+    --bg: #0f172a;
+    --panel: #1e293b;
+    --panel-border: #334155;
+    --text: #e2e8f0;
+    --muted: #94a3b8;
+    --accent: #38bdf8;
+    --danger: #f87171;
+    --ok: #4ade80;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    padding: 24px;
+  }
+  h1 { font-size: 22px; margin: 0 0 4px; }
+  .subtitle { color: var(--muted); margin: 0 0 24px; font-size: 14px; }
+
+  .controls {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    align-items: end;
+    background: var(--panel);
+    border: 1px solid var(--panel-border);
+    border-radius: 10px;
+    padding: 16px;
+    margin-bottom: 20px;
+  }
+  .field { display: flex; flex-direction: column; gap: 4px; }
+  .field label { font-size: 12px; color: var(--muted); }
+  .field input, .field select {
+    background: #0b1220;
+    border: 1px solid var(--panel-border);
+    color: var(--text);
+    border-radius: 6px;
+    padding: 8px 10px;
+    font-size: 13px;
+    min-width: 200px;
+  }
+  button {
+    background: var(--accent);
+    color: #0b1220;
+    border: none;
+    border-radius: 6px;
+    padding: 9px 16px;
+    font-weight: 600;
+    cursor: pointer;
+    font-size: 13px;
+  }
+  button:hover { opacity: 0.9; }
+
+  .cards {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+    gap: 14px;
+    margin-bottom: 20px;
+  }
+  .card {
+    background: var(--panel);
+    border: 1px solid var(--panel-border);
+    border-radius: 10px;
+    padding: 16px;
+  }
+  .card .label { color: var(--muted); font-size: 12px; margin-bottom: 6px; }
+  .card .value { font-size: 28px; font-weight: 700; }
+  .card.blocked .value { color: var(--danger); }
+  .card.scanned .value { color: var(--accent); }
+  .card.rate .value { color: #fbbf24; }
+
+  .charts {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 16px;
+  }
+  @media (max-width: 800px) {
+    .charts { grid-template-columns: 1fr; }
+  }
+  .chart-panel {
+    background: var(--panel);
+    border: 1px solid var(--panel-border);
+    border-radius: 10px;
+    padding: 16px;
+  }
+  .chart-panel h3 { margin: 0 0 12px; font-size: 14px; color: var(--muted); }
+
+  #status { font-size: 13px; color: var(--muted); margin-top: 4px; min-height: 16px; }
+  #status.error { color: var(--danger); }
+</style>
+</head>
+<body>
+
+<h1>WebHawk Security Analytics</h1>
+<p class="subtitle">Bonus dashboard — total requests scanned, attacks blocked, breakdown by type, and a timeline.</p>
+
+<div class="controls">
+  <div class="field">
+    <label for="token">JWT token (Authorization: Bearer ...)</label>
+    <input id="token" type="text" placeholder="Paste your token from /auth/login">
+  </div>
+  <div class="field">
+    <label for="backendKey">Backend API key (optional — leave blank for platform-wide totals)</label>
+    <input id="backendKey" type="text" placeholder="Optional: scope to one backend">
+  </div>
+  <div class="field">
+    <label for="hours">Timeline window</label>
+    <select id="hours">
+      <option value="6">Last 6 hours</option>
+      <option value="24" selected>Last 24 hours</option>
+      <option value="168">Last 7 days</option>
+      <option value="720">Last 30 days</option>
+    </select>
+  </div>
+  <button onclick="loadDashboard()">Load</button>
+</div>
+<div id="status"></div>
+
+<div class="cards">
+  <div class="card scanned">
+    <div class="label">Total Requests Scanned</div>
+    <div class="value" id="totalScanned">—</div>
+  </div>
+  <div class="card blocked">
+    <div class="label">Total Attacks Blocked</div>
+    <div class="value" id="totalBlocked">—</div>
+  </div>
+  <div class="card rate">
+    <div class="label">Block Rate</div>
+    <div class="value" id="blockRate">—</div>
+  </div>
+</div>
+
+<div class="charts">
+  <div class="chart-panel">
+    <h3>Breakdown by Attack Type</h3>
+    <canvas id="breakdownChart" height="220"></canvas>
+  </div>
+  <div class="chart-panel">
+    <h3>Blocked Attacks Over Time</h3>
+    <canvas id="timelineChart" height="220"></canvas>
+  </div>
+</div>
+
+<script>
+const tokenInput = document.getElementById('token');
+const backendKeyInput = document.getElementById('backendKey');
+const statusEl = document.getElementById('status');
+
+// Convenience only - remembers the token in this browser so you don't have
+// to repaste it on every reload. Not used for anything security-sensitive
+// beyond what the token itself already grants via the API.
+tokenInput.value = localStorage.getItem('webhawk_dashboard_token') || '';
+backendKeyInput.value = localStorage.getItem('webhawk_dashboard_backend_key') || '';
+
+let breakdownChart, timelineChart;
+
+async function loadDashboard() {
+  const token = tokenInput.value.trim();
+  const backendKey = backendKeyInput.value.trim();
+  const hours = document.getElementById('hours').value;
+
+  if (!token) {
+    setStatus('Paste a JWT token first (log in via POST /auth/login to get one).', true);
+    return;
+  }
+
+  localStorage.setItem('webhawk_dashboard_token', token);
+  localStorage.setItem('webhawk_dashboard_backend_key', backendKey);
+
+  setStatus('Loading…', false);
+
+  const params = new URLSearchParams({ hours });
+  if (backendKey) params.set('backend_key', backendKey);
+
+  try {
+    const res = await fetch(`/security/dashboard?${params.toString()}`, {
+      headers: { 'Authorization': `Bearer ${token}` }
+    });
+    const data = await res.json();
+
+    if (!res.ok) {
+      setStatus(`Error: ${data.error || res.status}`, true);
+      return;
+    }
+
+    setStatus(`Loaded at ${new Date().toLocaleTimeString()}`, false);
+    render(data);
+  } catch (err) {
+    setStatus(`Request failed: ${err.message}`, true);
+  }
+}
+
+function setStatus(text, isError) {
+  statusEl.textContent = text;
+  statusEl.className = isError ? 'error' : '';
+}
+
+function render(data) {
+  document.getElementById('totalScanned').textContent = data.total_scanned;
+  document.getElementById('totalBlocked').textContent = data.total_blocked;
+  const rate = data.total_scanned > 0
+    ? ((data.total_blocked / data.total_scanned) * 100).toFixed(1) + '%'
+    : '—';
+  document.getElementById('blockRate').textContent = rate;
+
+  const breakdownLabels = data.breakdown_by_attack_type.map(r => r.attack_type);
+  const breakdownCounts = data.breakdown_by_attack_type.map(r => r.count);
+  const colors = { SQLi: '#f87171', XSS: '#fbbf24', 'Rate Limiting': '#a78bfa' };
+
+  if (breakdownChart) breakdownChart.destroy();
+  breakdownChart = new Chart(document.getElementById('breakdownChart'), {
+    type: 'bar',
+    data: {
+      labels: breakdownLabels.length ? breakdownLabels : ['No attacks yet'],
+      datasets: [{
+        data: breakdownCounts.length ? breakdownCounts : [0],
+        backgroundColor: breakdownLabels.map(l => colors[l] || '#38bdf8'),
+      }]
+    },
+    options: {
+      plugins: { legend: { display: false } },
+      scales: {
+        y: { beginAtZero: true, ticks: { color: '#94a3b8' }, grid: { color: '#334155' } },
+        x: { ticks: { color: '#94a3b8' }, grid: { display: false } }
+      }
+    }
+  });
+
+  const timelineLabels = data.timeline.map(r => {
+    const d = new Date(r.bucket + 'Z');
+    return d.toLocaleString([], { month: 'short', day: 'numeric', hour: '2-digit' });
+  });
+  const timelineCounts = data.timeline.map(r => r.count);
+
+  if (timelineChart) timelineChart.destroy();
+  timelineChart = new Chart(document.getElementById('timelineChart'), {
+    type: 'line',
+    data: {
+      labels: timelineLabels.length ? timelineLabels : ['No data'],
+      datasets: [{
+        label: 'Blocked attacks',
+        data: timelineCounts.length ? timelineCounts : [0],
+        borderColor: '#f87171',
+        backgroundColor: 'rgba(248,113,113,0.15)',
+        fill: true,
+        tension: 0.3,
+      }]
+    },
+    options: {
+      plugins: { legend: { display: false } },
+      scales: {
+        y: { beginAtZero: true, ticks: { color: '#94a3b8' }, grid: { color: '#334155' } },
+        x: { ticks: { color: '#94a3b8' }, grid: { display: false } }
+      }
+    }
+  });
+}
+
+if (tokenInput.value) {
+  loadDashboard();
+}
+</script>
+
+</body>
+</html>

@@ -6,7 +6,7 @@ user_bp = Blueprint("user", __name__)
 
 @user_bp.route("/register", methods=["POST"])
 def register():
-    data = request.json
+    data = request.get_json(silent=True) or {}
     username = data.get("username")
     password = data.get("password")
 
@@ -22,7 +22,7 @@ def register():
 
 @user_bp.route("/login", methods=["POST"])
 def login():
-    data = request.json
+    data = request.get_json(silent=True) or {}
     username = data.get("username")
     password = data.get("password")
 
