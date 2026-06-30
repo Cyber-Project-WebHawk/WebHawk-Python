@@ -36,7 +36,12 @@ def register():
     if not name or not target_url:
         return jsonify({"error": "name and target_url are required"}), 400
 
-    backend = create_backend(name, target_url)
+    backend, error = create_backend(name, target_url, user["user_id"])
+    if error == "duplicate_name":
+        return jsonify({"error": "A backend with this name already exists"}), 409
+    if error:
+        return jsonify({"error": error}), 400
+
     return jsonify(backend), 201
 
 
@@ -46,7 +51,7 @@ def list_all():
     if err:
         return err
 
-    backends = list_backends()
+    backends = list_backends(user["user_id"])
     return jsonify(backends), 200
 
 
@@ -61,7 +66,7 @@ def activate():
     if not api_key:
         return jsonify({"error": "api_key is required"}), 400
 
-    result = activate_backend(api_key)
+    result = activate_backend(api_key, user["user_id"])
     if result is None:
         return jsonify({"error": "Backend not found"}), 404
 
@@ -79,7 +84,7 @@ def deactivate():
     if not api_key:
         return jsonify({"error": "api_key is required"}), 400
 
-    result = deactivate_backend(api_key)
+    result = deactivate_backend(api_key, user["user_id"])
     if result is None:
         return jsonify({"error": "Backend not found"}), 404
 
@@ -97,7 +102,7 @@ def proxy(path):
     body = request.get_json(silent=True) or {}
     query_params = request.args.to_dict()
 
-    scan_result = scan_request(ip, path, method, body, query_params, path)
+    scan_result = scan_request(ip, path, method, body, query_params, path, api_key)
     if scan_result["blocked"]:
         return jsonify({
             "status": "blocked",

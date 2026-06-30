@@ -166,11 +166,12 @@ class TestScanRequest:
         assert result["attack_type"] == "SQLi"
 
     @patch("security_engine.service.security_service.upsert_rate_limit", return_value=(1, False))
-    def test_does_not_log_clean_request(self, mock_rate):
+    def test_logs_clean_request_as_unblocked(self, mock_rate):
         from security_engine.service.security_service import scan_request
         with patch("security_engine.service.security_service.log_security_event") as mock_log:
             scan_request("127.0.0.1", "/data", "GET", {}, {}, "/data")
-            mock_log.assert_not_called()
+            mock_log.assert_called_once()
+            assert mock_log.call_args[0][4] is False  # was_blocked = False
 
 
 # ===========================================================================
@@ -287,11 +288,12 @@ VALID_USER_PAYLOAD = {"user_id": 1, "username": "romi"}
 
 class TestBackendRegister:
     @patch("Route.backend_route.validate_token", return_value=(VALID_USER_PAYLOAD, None))
-    @patch("Route.backend_route.create_backend", return_value={
-        "id": 1, "name": "my-api",
-        "target_url": "http://localhost:5001",
-        "api_key": "test-uuid-key", "is_active": True
-    })
+    @patch("Route.backend_route.create_backend", return_value=(
+        {"id": 1, "name": "my-api",
+         "target_url": "http://localhost:5001",
+         "api_key": "test-uuid-key", "is_active": True},
+        None
+    ))
     def test_success_returns_201_with_api_key(self, mock_create, mock_auth, client):
         resp = client.post("/backends/register", headers=AUTH_HEADER,
                            json={"name": "my-api", "target_url": "http://localhost:5001"})

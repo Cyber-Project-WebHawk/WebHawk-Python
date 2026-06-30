@@ -4,38 +4,26 @@ from Repository.backend_repository import (
     register_backend,
     get_backend_by_api_key,
     update_backend_status,
-    get_all_backends,
+    get_backends_by_user,
 )
 
 
-def create_backend(name, target_url):
+def create_backend(name, target_url, user_id):
     api_key = str(uuid.uuid4())
-    row = register_backend(name, target_url, api_key)
+    row, error = register_backend(name, target_url, api_key, user_id)
+    if error:
+        return None, error
     return {
         "id": row[0],
         "name": row[1],
         "target_url": row[2],
         "api_key": row[3],
         "is_active": row[4],
-    }
+    }, None
 
 
-def deactivate_backend(api_key):
-    row = update_backend_status(api_key, is_active=False)
-    if row is None:
-        return None
-    return {"id": row[0], "name": row[1], "is_active": row[2]}
-
-
-def activate_backend(api_key):
-    row = update_backend_status(api_key, is_active=True)
-    if row is None:
-        return None
-    return {"id": row[0], "name": row[1], "is_active": row[2]}
-
-
-def list_backends():
-    rows = get_all_backends()
+def list_backends(user_id):
+    rows = get_backends_by_user(user_id)
     return [
         {
             "id": r[0],
@@ -46,6 +34,20 @@ def list_backends():
         }
         for r in rows
     ]
+
+
+def deactivate_backend(api_key, user_id):
+    row = update_backend_status(api_key, False, user_id)
+    if row is None:
+        return None
+    return {"id": row[0], "name": row[1], "is_active": row[2]}
+
+
+def activate_backend(api_key, user_id):
+    row = update_backend_status(api_key, True, user_id)
+    if row is None:
+        return None
+    return {"id": row[0], "name": row[1], "is_active": row[2]}
 
 
 def proxy_request(api_key, method, path, headers, body, query_params):
