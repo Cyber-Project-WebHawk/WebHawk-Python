@@ -4,7 +4,6 @@ A smart middleware service that protects backend applications from common web at
 
 Developers register their backend with WebHawk. From that point, every incoming request passes through WebHawk first — scanned for attacks before being forwarded to the real server.
 
-> See [`CHANGELOG.md`](./CHANGELOG.md) for a list of hardening fixes applied to this codebase (auth on backend management, crash-safe error handling, per-backend rate limiting, etc.).
 
 ---
 
