@@ -13,6 +13,11 @@ services:
       - "5432:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
 
   webhawk:
     build:
@@ -29,7 +34,8 @@ services:
       DB_PORT: 5432
       JWT_SECRET: webhawk_super_secret_key
     depends_on:
-      - db
+      db:
+        condition: service_healthy
 
   vulnerable_backend:
     build:
@@ -38,6 +44,23 @@ services:
     container_name: webhawk_vulnerable
     ports:
       - "5001:5001"
+
+  tester:
+    profiles: [test]
+    build:
+      context: .
+      dockerfile: Dockerfile.test
+    environment:
+      TEST_DB_HOST: db
+      TEST_DB_NAME: webhawk_test
+      TEST_DB_USER: postgres
+      TEST_DB_PASSWORD: webhawk1234
+      TEST_DB_PORT: "5432"
+      JWT_SECRET: pytest-test-secret-do-not-use-in-production
+    depends_on:
+      db:
+        condition: service_healthy
+    command: ["pytest", "tests/", "-v"]
 
 volumes:
   postgres_data:
