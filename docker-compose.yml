@@ -1,4 +1,3 @@
-version: "3.9"
 
 services:
 
@@ -6,9 +5,9 @@ services:
     image: postgres:15
     container_name: webhawk_db
     environment:
-      POSTGRES_DB: webhawk
-      POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: webhawk1234
+      POSTGRES_DB: ${DB_NAME}
+      POSTGRES_USER: ${DB_USER}
+      POSTGRES_PASSWORD: ${DB_PASSWORD}
     ports:
       - "5433:5432"
     volumes:
@@ -28,11 +27,11 @@ services:
       - "5000:5000"
     environment:
       DB_HOST: db
-      DB_NAME: webhawk
-      DB_USER: postgres
-      DB_PASSWORD: webhawk1234
+      DB_NAME: ${DB_NAME}
+      DB_USER: ${DB_USER}
+      DB_PASSWORD: ${DB_PASSWORD}
       DB_PORT: 5432
-      JWT_SECRET: webhawk_super_secret_key
+      JWT_SECRET: ${JWT_SECRET}
       FLASK_DEBUG: "false"
     depends_on:
       db:
@@ -54,8 +53,8 @@ services:
     environment:
       TEST_DB_HOST: db
       TEST_DB_NAME: webhawk_test
-      TEST_DB_USER: postgres
-      TEST_DB_PASSWORD: webhawk1234
+      TEST_DB_USER: ${DB_USER}
+      TEST_DB_PASSWORD: ${DB_PASSWORD}
       TEST_DB_PORT: "5432"
       JWT_SECRET: pytest-test-secret-do-not-use-in-production
     depends_on:
