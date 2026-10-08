@@ -7,8 +7,7 @@ RUN pip install --no-cache-dir -r requirements.txt
 
 COPY . .
 
-RUN chmod +x docker-entrypoint.sh
-
 EXPOSE 5000
 
-ENTRYPOINT ["./docker-entrypoint.sh"]
+# Use sh -c so Windows CRLF on the entrypoint script cannot break startup.
+ENTRYPOINT ["sh", "-c", "python db/create_tables.py && exec python app.py"]

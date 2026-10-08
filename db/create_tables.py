@@ -25,11 +25,14 @@ def _migrate_schema(cursor):
     cursor.execute(
         """
         DO $$ BEGIN
-            ALTER TABLE rate_limit
-            ADD CONSTRAINT rate_limit_ip_endpoint_backend_key
-            UNIQUE (ip, endpoint, backend_key);
-        EXCEPTION
-            WHEN duplicate_object THEN NULL;
+            IF NOT EXISTS (
+                SELECT 1 FROM pg_constraint
+                WHERE conname = 'rate_limit_ip_endpoint_backend_key'
+            ) THEN
+                ALTER TABLE rate_limit
+                ADD CONSTRAINT rate_limit_ip_endpoint_backend_key
+                UNIQUE (ip, endpoint, backend_key);
+            END IF;
         END $$
         """
     )

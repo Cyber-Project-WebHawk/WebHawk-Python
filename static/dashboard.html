@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <title>WebHawk — Security Analytics</title>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.4/chart.umd.min.js"></script>
+<script src="/static/vendor/chart.umd.min.js"></script>
 <style>
   :root {
     --bg: #0f172a;
@@ -196,7 +196,7 @@ async function loadDashboard() {
     setStatus(`Loaded at ${new Date().toLocaleTimeString()}`, false);
     render(data);
   } catch (err) {
-    setStatus(`Request failed: ${err.message}`, true);
+    setStatus(`Failed: ${err.message}`, true);
   }
 }
 
@@ -212,6 +212,11 @@ function render(data) {
     ? ((data.total_blocked / data.total_scanned) * 100).toFixed(1) + '%'
     : '—';
   document.getElementById('blockRate').textContent = rate;
+
+  if (typeof Chart === "undefined") {
+    setStatus('Numbers loaded, but Chart.js failed to load (CDN blocked). Charts unavailable.', true);
+    return;
+  }
 
   const breakdownLabels = data.breakdown_by_attack_type.map(r => r.attack_type);
   const breakdownCounts = data.breakdown_by_attack_type.map(r => r.count);
